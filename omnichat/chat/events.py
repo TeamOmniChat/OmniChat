@@ -18,9 +18,10 @@ def handle_chat(msg):
     evt = msg["event"] if "event" in msg else "users"
     match evt:
         case "join":
-            user = msg["user"], room = msg["room"]
+            user = msg["user"]
+            room = msg["room"]
             add_current_user_to_room(room["name"])
-            socketio.send("chat", {
+            socketio.emit("chat", {
                 "type": "newuser",
                 "message": f"Welcome {user['username']} to {room['name']} !"
             }, room=room["name"])
