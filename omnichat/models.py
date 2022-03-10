@@ -1,3 +1,4 @@
+from datetime import datetime
 from .extensions import db, login_manager
 from flask_login import UserMixin
 from flask_bcrypt import generate_password_hash, check_password_hash
@@ -25,7 +26,9 @@ class User(UserMixin, db.Model):
 
     @password.setter
     def password(self, password: str) -> None:
-        self.password_hash = generate_password_hash(password)
+        # workaround for Postgres password storing
+        # https://stackoverflow.com/a/38262440/13266491
+        self.password_hash = generate_password_hash(password.encode("utf8")).decode("utf8")
 
     def verify_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
@@ -59,3 +62,4 @@ class Message(db.Model):
     msg: str = db.Column(db.String)
     sender_id: int = db.Column(db.Integer, db.ForeignKey("user.id"))
     room_id: int = db.Column(db.Integer, db.ForeignKey("room.id"))
+    created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now())

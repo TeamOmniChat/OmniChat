@@ -6,8 +6,8 @@ class MessageSchema(ma.SQLAlchemyAutoSchema):
         model = Message
         include_fk = True
     
-    sender = ma.Nested(lambda: UserSchema())
-    room = ma.Nested(lambda: RoomSchema())
+    sender = ma.Nested(lambda: UserSchema(exclude=("messages",)))
+    room = ma.Nested(lambda: RoomSchema(exclude=("messages",)))
 
 
 class UserSchema(ma.SQLAlchemyAutoSchema):
@@ -16,7 +16,7 @@ class UserSchema(ma.SQLAlchemyAutoSchema):
         include_fk = True
         exclude = ("password_hash",)    
     
-    messages = ma.List(ma.Nested(MessageSchema))
+    messages = ma.List(ma.Nested(MessageSchema(exclude=("sender",))))
 
 
 class RoomSchema(ma.SQLAlchemyAutoSchema):
@@ -24,6 +24,6 @@ class RoomSchema(ma.SQLAlchemyAutoSchema):
         model = Room
         include_fk = True
     
-    owner = ma.Nested(UserSchema)
-    members = ma.List(ma.Nested(UserSchema))
-    messages = ma.List(ma.Nested(MessageSchema))
+    owner = ma.Nested(UserSchema(exclude=("messages",)))
+    members = ma.List(ma.Nested(UserSchema(exclude=("messages",))))
+    messages = ma.List(ma.Nested(MessageSchema(exclude=("room",))))
