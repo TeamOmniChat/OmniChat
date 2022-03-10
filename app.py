@@ -1,6 +1,9 @@
 from omnichat import create_app
 from omnichat.models import *
 from omnichat.extensions import socketio
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = create_app()
 
