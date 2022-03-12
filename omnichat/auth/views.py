@@ -24,9 +24,7 @@ def register():
     user = User(username=username, password=password, email=email)
     db.session.add(user)
     db.session.commit()
-    return jsonify({
-        "message": f"User {username} registered successfully."
-    })
+    return jsonify(user_schema.dump(user))
 
 
 @auth.route("/login", methods=["POST"])
@@ -43,7 +41,7 @@ def login():
     return jsonify({
         "error": "Invalid payload",
         "detail": "Unable to log into your account. Please check if your username and password are correct."
-    }), 400
+    }), 401
 
 
 @jwt.unauthorized_loader
@@ -68,6 +66,4 @@ def verification_failed(header, payload):
 @auth.route("/who-am-i")
 @jwt_required()
 def who_am_i():
-    return jsonify({
-        "data": user_schema.dump(current_user)
-    })
+    return jsonify(user_schema.dump(current_user))

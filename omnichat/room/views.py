@@ -27,13 +27,10 @@ def new_room():
             return jsonify({
                 "error": "Invalid payload",
                 "detail": "The user requested does not exist."
-            }), 400
+            }), 404
         room.members.append(u)
     db.session.commit()
-    return jsonify({
-        "message": "Room created successfully.",
-        "data": room_schema.dump(room)
-    })
+    return jsonify(room_schema.dump(room))
 
 @room_view.route("/<id>")
 def get_room(id):
@@ -42,11 +39,8 @@ def get_room(id):
         return jsonify({
             "error": "Invalid payload",
             "detail": "The room requested does not exist."
-        }), 400
-    return jsonify({
-        "message": "Room fetched successfully.",
-        "data": room_schema.dump(room)
-    })
+        }), 404
+    return jsonify(room_schema.dump(room))
 
 @room_view.route("/<id>/add-members", methods=["POST"])
 @jwt_required()
@@ -56,7 +50,7 @@ def add_members(id):
         return jsonify({
             "error": "Invalid payload",
             "detail": "The room requested does not exist."
-        }), 400
+        }), 404
     if room.owner_id != current_user.id:
         return jsonify({
             "error": "Forbidden",
@@ -74,6 +68,4 @@ def add_members(id):
         room.members.append(u)
     db.session.add(room)
     db.session.commit()
-    return jsonify({
-        "message": "Members added successfully"
-    })
+    return jsonify(room_schema.dump(room))
