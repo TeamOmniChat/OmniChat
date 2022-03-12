@@ -2,7 +2,8 @@
 import functools
 
 from flask import request, session
-from flask_login import current_user
+from flask_jwt_extended import (current_user, decode_token, jwt_required,
+                                verify_jwt_in_request)
 from flask_socketio import disconnect, emit, join_room, leave_room, rooms
 
 from ..extensions import db, socketio
@@ -12,15 +13,19 @@ from ..schemas import UserSchema
 
 def authenticated_only(f):
     @functools.wraps(f)
-    def wrapped(*args, **kwargs):
-        if not current_user.is_authenticated:
+    def wrapped(msg):
+        if not msg.get("token", None):
             disconnect()
         else:
-            return f(*args, **kwargs)
+            u = User.query.get(decode_token(msg["token"])["sub"])
+            if u is None:
+                disconnect()
+            else:
+                return f(msg, u)
     return wrapped
 
 
-user_schema = UserSchema()
+user_schema = UserSchema(exclude=("messages",))
 
 
 def add_current_user_to_room(roomname):
@@ -34,54 +39,39 @@ def add_current_user_to_room(roomname):
 
 @socketio.on("join")
 @authenticated_only
-def handle_join(msg):
-    user = msg["user"]
+def handle_join(msg, sender):
     room = msg["room"]
-    # check if current user is the currently logged in user
-    # can't use this in Postman since cookies between Socket requests
-    # and normal HTTP requests don't sync
-    # so remember to comment it out when testing APIs with Postman
-    # however, in production, you MUST uncomment this to prevent
-    # hackers use this issue to fake messages
-    if user["username"] != current_user.username:
-        return
     if room["name"] in rooms():
         return
     join_room(room["name"])
     socketio.emit("system", {
         "type": "join",
-        "message": f"Welcome {user['username']} to {room['name']} !"
+        "message": f"Welcome {sender.username} to {room['name']} !"
     }, room=room["name"])
 
 
 @socketio.on("text")
 @authenticated_only
-def handle_text(msg):
-    user = msg["user"]
+def handle_text(msg, sender):
     room = msg["room"]
-    if user["username"] != current_user.username:
-        return
     message = Message(msg=msg["msg"], sender=User.query.filter_by(
-        username=user["username"]).first(), room=Room.query.filter_by(name=room["name"]).first())
+        username=sender.username).first(), room=Room.query.filter_by(name=room["name"]).first())
     db.session.add(message)
     db.session.commit()
     socketio.emit("message", {
-        "type": "message",
+        "type": "text",
         "message": msg["msg"],
-        "user": user,
+        "user": user_schema.dump(sender),
         "room": room
     }, room=room["name"])
 
 
 @socketio.on("leave")
 @authenticated_only
-def handle_leave(msg):
-    user = msg["user"]
+def handle_leave(msg, sender):
     room = msg["room"]
-    if user["username"] != current_user.username:
-        return
     leave_room(room["name"])
     socketio.emit("system", {
         "type": "leave",
-        "message": f"User {user['username']} has left the room."
+        "message": f"User {sender.username} has left the room."
     }, room=room["name"])

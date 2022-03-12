@@ -1,6 +1,5 @@
 from datetime import datetime
-from .extensions import db, login_manager
-from flask_login import UserMixin
+from .extensions import db, jwt
 from flask_bcrypt import generate_password_hash, check_password_hash
 
 room_user = db.Table("room_user",
@@ -10,7 +9,7 @@ room_user = db.Table("room_user",
                      )
 
 
-class User(UserMixin, db.Model):
+class User(db.Model):
     __tablename__ = "user"
 
     id: int = db.Column(db.Integer, primary_key=True)
@@ -28,7 +27,8 @@ class User(UserMixin, db.Model):
     def password(self, password: str) -> None:
         # workaround for Postgres password storing
         # https://stackoverflow.com/a/38262440/13266491
-        self.password_hash = generate_password_hash(password.encode("utf8")).decode("utf8")
+        self.password_hash = generate_password_hash(
+            password.encode("utf8")).decode("utf8")
 
     def verify_password(self, password: str) -> bool:
         return check_password_hash(self.password_hash, password)
@@ -37,9 +37,15 @@ class User(UserMixin, db.Model):
         return '<User %s>' % self.username
 
 
-@login_manager.user_loader
-def load_user(user_id: int):
-    return User.query.get(user_id)
+@jwt.user_identity_loader
+def user_identity_lookup(user):
+    return user.id
+
+
+@jwt.user_lookup_loader
+def load_user(_jwt_header, jwt_data):
+    identity = jwt_data["sub"]
+    return User.query.filter_by(id=identity).one_or_none()
 
 
 class Room(db.Model):
@@ -62,4 +68,5 @@ class Message(db.Model):
     msg: str = db.Column(db.String)
     sender_id: int = db.Column(db.Integer, db.ForeignKey("user.id"))
     room_id: int = db.Column(db.Integer, db.ForeignKey("room.id"))
-    created_at: datetime = db.Column(db.DateTime, default=lambda: datetime.now())
+    created_at: datetime = db.Column(
+        db.DateTime, default=lambda: datetime.now())

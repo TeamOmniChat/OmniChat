@@ -1,12 +1,13 @@
 from flask import jsonify, request, session
-from flask_login import login_user, login_required, logout_user, current_user
+from flask_jwt_extended import jwt_required, current_user, create_access_token
+from datetime import timedelta
 
 from . import auth
 from ..models import User
-from ..extensions import db, login_manager
+from ..extensions import db, jwt
 from ..schemas import UserSchema
 
-user_schema = UserSchema()
+user_schema = UserSchema(exclude=("messages",))
 
 
 @auth.route("/register", methods=["POST"])
@@ -30,19 +31,14 @@ def register():
 
 @auth.route("/login", methods=["POST"])
 def login():
-    if current_user.is_authenticated:
-        return jsonify({
-            "error": "Already authenticated",
-            "detail": "You already logged in."
-        }), 403
     username: str = request.json.get("username")
     password: str = request.json.get("password")
     user: User = User.query.filter_by(username=username).first()
     if user.verify_password(password):
-        login_user(user, True)
+        access_token = create_access_token(user, expires_delta=timedelta(days=15))
         session["user"] = user_schema.dump(user)
         return jsonify({
-            "message": f"Logged in as {user.username}."
+            "token": access_token
         })
     return jsonify({
         "error": "Invalid payload",
@@ -50,26 +46,28 @@ def login():
     }), 400
 
 
-@auth.route("/logout")
-@login_required
-def logout():
-    logout_user()
-    return jsonify({
-        "message": "Logged out successfully."
-    })
-
-
-@login_manager.unauthorized_handler
-def unauthorized():
+@jwt.unauthorized_loader
+def unauthorized(why):
     return jsonify({
         "error": "Unauthenticated",
-        "detail": "You're not logged in."
+        "detail": why
     }), 401
 
 
-@auth.route("/current_user")
-@login_required
-def get_current_user():
+@jwt.token_verification_failed_loader
+def verification_failed(header, payload):
+    return jsonify({
+        "error": "Token verify failed.",
+        "detail": {
+            "header": header,
+            "payload": payload
+        }
+    }), 401
+
+
+@auth.route("/who-am-i")
+@jwt_required()
+def who_am_i():
     return jsonify({
         "data": user_schema.dump(current_user)
     })

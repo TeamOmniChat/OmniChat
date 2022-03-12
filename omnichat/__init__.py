@@ -1,6 +1,9 @@
 import os
+
 from flask import Flask
-from .extensions import db, migrate, login_manager, bcrypt, ma, socketio
+
+from .extensions import bcrypt, db, jwt, ma, migrate, socketio
+
 
 def create_app(test_config=None):
     # create and configure the app
@@ -21,14 +24,14 @@ def create_app(test_config=None):
 
     db.init_app(app)
     migrate.init_app(app, db)
-    login_manager.init_app(app)
+    jwt.init_app(app)
     bcrypt.init_app(app)
     ma.init_app(app)
     socketio.init_app(app)
 
     from .auth import auth as auth_bp
-    from .room import room_view as room_bp
     from .chat import chat as chat_bp
+    from .room import room_view as room_bp
     app.register_blueprint(auth_bp)
     app.register_blueprint(room_bp)
     app.register_blueprint(chat_bp)

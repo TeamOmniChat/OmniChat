@@ -1,6 +1,6 @@
 from flask import jsonify, request
 from . import room_view
-from flask_login import login_required, current_user
+from flask_jwt_extended import jwt_required, current_user
 from ..models import Room, User
 from ..extensions import db
 from ..schemas import RoomSchema
@@ -8,7 +8,7 @@ from ..schemas import RoomSchema
 room_schema = RoomSchema()
 
 @room_view.route("/", methods=["POST"])
-@login_required
+@jwt_required()
 def new_room():
     name = request.json.get("name")
     desc = request.json.get("desc")
@@ -48,7 +48,8 @@ def get_room(id):
         "data": room_schema.dump(room)
     })
 
-@room_view.route("/<id>/add-members")
+@room_view.route("/<id>/add-members", methods=["POST"])
+@jwt_required()
 def add_members(id):
     room = Room.query.get(id)
     if room is None:
@@ -56,7 +57,12 @@ def add_members(id):
             "error": "Invalid payload",
             "detail": "The room requested does not exist."
         }), 400
-    member_ids = request.json.get("members", "").split(",")
+    if room.owner_id != current_user.id:
+        return jsonify({
+            "error": "Forbidden",
+            "detail": "Current user does not match the room owner."
+        }), 403
+    member_ids = request.json.get("members", [])
     for member in member_ids:
         u = User.query.get(member)
         if u is None:
@@ -64,6 +70,7 @@ def add_members(id):
                 "error": "Invalid payload",
                 "detail": "The user requested does not exist."
             }), 400
+        if u in room.members: continue
         room.members.append(u)
     db.session.add(room)
     db.session.commit()
